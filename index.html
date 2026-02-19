@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stickman War: Community Arena</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body { margin: 0; background: #e8e8e8; font-family: 'Arial', sans-serif; overflow: hidden; }
+        #ui { position: absolute; width: 100%; top: 20px; display: flex; justify-content: space-around; pointer-events: none; }
+        .hp-container { width: 300px; height: 25px; background: #333; border: 3px solid #000; border-radius: 5px; }
+        .hp-bar { height: 100%; width: 100%; transition: 0.2s; }
+        #p1-hp { background: #3498db; }
+        #p2-hp { background: #e74c3c; }
+
+        /* Support Menu at End of Round */
+        #victory-screen {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95); padding: 40px; border: 5px solid #333;
+            text-align: center; display: none; z-index: 1000; width: 350px; border-radius: 15px;
+        }
+        .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; font-weight: bold; text-decoration: none; border-radius: 8px; cursor: pointer; border: none; font-size: 16px; }
+        .yt-btn { background: #ff0000; color: white; }
+        .esofa-btn { background: #333; color: white; }
+        .retry-btn { background: #bbb; color: #000; }
+        
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="hp-container"><div id="p1-hp" class="hp-bar"></div></div>
+    <div class="hp-container"><div id="p2-hp" class="hp-bar"></div></div>
+</div>
+
+<div id="victory-screen">
+    <h1 id="winner-text" style="margin-top:0;">BLUE WINS!</h1>
+    <p>While the stickmen recover, check out the community:</p>
+    
+    <a class="btn yt-btn" href="https://www.youtube.com/@SancoOutdoors" target="_blank">🎬 SUB TO SANCO OUTDOORS</a>
+    <a class="btn esofa-btn" href="https://www.sanangelogives.org/organization/emmanuelschooloffinearts" target="_blank">🎻 TIP THE SCHOOL</a>
+    
+    <button class="btn retry-btn" onclick="location.reload()">REMATCH</button>
+</div>
+
+<script>
+const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
+
+const engine = Engine.create();
+const render = Render.create({
+    element: document.body,
+    engine: engine,
+    options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#f4f4f4' }
+});
+
+// Ground & Walls
+const floor = Bodies.rectangle(window.innerWidth/2, window.innerHeight - 25, window.innerWidth, 50, { isStatic: true, render: { fillStyle: '#333' } });
+const wallL = Bodies.rectangle(-10, 300, 20, 1000, { isStatic: true });
+const wallR = Bodies.rectangle(window.innerWidth + 10, 300, 20, 1000, { isStatic: true });
+Composite.add(engine.world, [floor, wallL, wallR]);
+
+function createStickman(x, y, color, id) {
+    const head = Bodies.circle(x, y - 50, 18, { friction: 0.5, label: id });
+    const body = Bodies.rectangle(x, y, 12, 60, { friction: 0.5, label: id });
+    const compound = Body.create({ parts: [body, head], inertia: Infinity, label: id });
+    return { body: compound, hp: 100, color: color, attacking: false, cd: 0 };
+}
+
+const p1 = createStickman(window.innerWidth * 0.2, 500, '#3498db', 'p1');
+const p2 = createStickman(window.innerWidth * 0.8, 500, '#e74c3c', 'p2');
+Composite.add(engine.world, [p1.body, p2.body]);
+
+const keys = {};
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+Events.on(engine, 'beforeUpdate', () => {
+    if (p1.hp <= 0 || p2.hp <= 0) return;
+
+    // P1 Physics Controls
+    if (keys['KeyA']) Body.setVelocity(p1.body, { x: -6, y: p1.body.velocity.y });
+    if (keys['KeyD']) Body.setVelocity(p1.body, { x: 6, y: p1.body.velocity.y });
+    if (keys['KeyW'] && Math.abs(p1.body.velocity.y) < 0.1) Body.setVelocity(p1.body, { x: p1.body.velocity.x, y: -13 });
+    
+    // P2 Physics Controls
+    if (keys['ArrowLeft']) Body.setVelocity(p2.body, { x: -6, y: p2.body.velocity.y });
+    if (keys['ArrowRight']) Body.setVelocity(p2.body, { x: 6, y: p2.body.velocity.y });
+    if (keys['ArrowUp'] && Math.abs(p2.body.velocity.y) < 0.1) Body.setVelocity(p2.body, { x: p2.body.velocity.x, y: -13 });
+
+    // P1 Attack
+    if (keys['KeyS'] && p1.cd <= 0) {
+        p1.cd = 25;
+        checkHit(p1, p2, 1);
+    }
+    // P2 Attack
+    if (keys['ArrowDown'] && p2.cd <= 0) {
+        p2.cd = 25;
+        checkHit(p2, p1, -1);
+    }
+
+    if(p1.cd > 0) p1.cd--;
+    if(p2.cd > 0) p2.cd--;
+});
+
+function checkHit(attacker, defender, dir) {
+    const dist = Vector.magnitude(Vector.sub(attacker.body.position, defender.body.position));
+    if (dist < 90) {
+        defender.hp -= 10;
+        document.getElementById(defender === p1 ? 'p1-hp' : 'p2-hp').style.width = defender.hp + '%';
+        Body.applyForce(defender.body, defender.body.position, { x: 0.08 * dir, y: -0.05 });
+        if (defender.hp <= 0) endGame(attacker === p1 ? "BLUE UNIT WINS" : "RED UNIT WINS");
+    }
+}
+
+function endGame(msg) {
+    document.getElementById('winner-text').innerText = msg;
+    document.getElementById('victory-screen').style.display = 'block';
+}
+
+Events.on(render, 'afterRender', () => {
+    const ctx = render.context;
+    [p1, p2].forEach(p => {
+        const pos = p.body.position;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        
+        // Custom Stickman Visuals
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y - 45, 15, 0, Math.PI * 2); // Head
+        ctx.moveTo(pos.x, pos.y - 30); ctx.lineTo(pos.x, pos.y + 15); // Spine
+        ctx.moveTo(pos.x, pos.y + 15); ctx.lineTo(pos.x - 20, pos.y + 45); // Left Leg
+        ctx.moveTo(pos.x, pos.y + 15); ctx.lineTo(pos.x + 20, pos.y + 45); // Right Leg
+        
+        // Animated Arms
+        const armX = p.cd > 10 ? (p === p1 ? 35 : -35) : (p === p1 ? 20 : -20);
+        ctx.moveTo(pos.x, pos.y - 15); ctx.lineTo(pos.x + armX, pos.y - 15);
+        ctx.stroke();
+    });
+});
+
+Render.run(render);
+Runner.run(Runner.create(), engine);
+</script>
+</body>
+</html>
