@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Stickman War: Arena</title>
+    <title>Stickman War: Caged Arena</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { margin: 0; background: #e8e8e8; font-family: 'Arial', sans-serif; overflow: hidden; }
@@ -35,10 +35,8 @@
 <div id="victory-screen">
     <h1 id="winner-text" style="margin-top:0; color:#333; text-transform: uppercase;">KO!</h1>
     <p style="color: #666; font-weight: bold;">While the stickmen recover, check out the sponsors!</p>
-    
     <a class="btn yt-btn" href="https://www.youtube.com/@SancoOutdoors" target="_blank">🎬 SUB TO SANCO OUTDOORS</a>
     <a class="btn esofa-btn" href="https://www.sanangelogives.org/organization/emmanuelschooloffinearts" target="_blank">🎻 TIP THE SCHOOL</a>
-    
     <button class="btn retry-btn" onclick="location.reload()">REMATCH</button>
 </div>
 
@@ -52,10 +50,13 @@ const render = Render.create({
     options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#f4f4f4' }
 });
 
+// Arena Boundaries (Now with a Roof!)
 const floor = Bodies.rectangle(window.innerWidth/2, window.innerHeight - 25, window.innerWidth, 50, { isStatic: true, render: { fillStyle: '#333' } });
-const wallL = Bodies.rectangle(-10, 300, 20, 1000, { isStatic: true });
-const wallR = Bodies.rectangle(window.innerWidth + 10, 300, 20, 1000, { isStatic: true });
-Composite.add(engine.world, [floor, wallL, wallR]);
+const ceiling = Bodies.rectangle(window.innerWidth/2, 25, window.innerWidth, 50, { isStatic: true, render: { fillStyle: '#333' } });
+const wallL = Bodies.rectangle(-10, window.innerHeight/2, 20, window.innerHeight, { isStatic: true });
+const wallR = Bodies.rectangle(window.innerWidth + 10, window.innerHeight/2, 20, window.innerHeight, { isStatic: true });
+
+Composite.add(engine.world, [floor, ceiling, wallL, wallR]);
 
 function createStickman(x, y, color, id) {
     const head = Bodies.circle(x, y - 50, 18, { friction: 0.5, label: id });
@@ -75,6 +76,7 @@ window.addEventListener('keyup', e => keys[e.code] = false);
 Events.on(engine, 'beforeUpdate', () => {
     if (p1.hp <= 0 || p2.hp <= 0) return;
 
+    // Movement
     if (keys['KeyA']) Body.setVelocity(p1.body, { x: -6, y: p1.body.velocity.y });
     if (keys['KeyD']) Body.setVelocity(p1.body, { x: 6, y: p1.body.velocity.y });
     if (keys['KeyW'] && Math.abs(p1.body.velocity.y) < 0.1) Body.setVelocity(p1.body, { x: p1.body.velocity.x, y: -13 });
@@ -83,6 +85,7 @@ Events.on(engine, 'beforeUpdate', () => {
     if (keys['ArrowRight']) Body.setVelocity(p2.body, { x: 6, y: p2.body.velocity.y });
     if (keys['ArrowUp'] && Math.abs(p2.body.velocity.y) < 0.1) Body.setVelocity(p2.body, { x: p2.body.velocity.x, y: -13 });
 
+    // Combat
     if (keys['KeyS'] && p1.cd <= 0) { p1.cd = 20; checkHit(p1, p2); }
     if (keys['ArrowDown'] && p2.cd <= 0) { p2.cd = 20; checkHit(p2, p1); }
 
