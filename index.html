@@ -3,34 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stickman War: Mobile Caged Arena</title>
+    <title>Stickman War: Connected Arena</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
-        body { margin: 0; background: #e8e8e8; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+        body { margin: 0; background: #e8e8e8; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
         #ui { position: absolute; width: 100%; top: 20px; display: flex; justify-content: space-around; pointer-events: none; z-index: 10; }
         .hp-container { width: 35%; max-width: 300px; height: 20px; background: #333; border: 2px solid #000; border-radius: 5px; overflow: hidden; }
         .hp-bar { height: 100%; width: 100%; transition: 0.2s; }
-        #p1-hp { background: #3498db; }
+        #p1-hp { background: var(--p1-color, #3498db); } /* Dynamic Color */
         #p2-hp { background: #e74c3c; }
-
-        /* Victory Screen */
         #victory-screen {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(255, 255, 255, 0.98); padding: 30px; border: 5px solid #333;
+            background: white; padding: 30px; border: 5px solid #333;
             text-align: center; display: none; z-index: 1000; width: 80%; max-width: 380px; border-radius: 15px;
         }
-        .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; font-weight: bold; text-decoration: none; border-radius: 8px; cursor: pointer; border: none; font-size: 14px; box-sizing: border-box; }
-        .yt-btn { background: #ff0000; color: white; }
-        .esofa-btn { background: #333; color: white; }
-        .retry-btn { background: #bbb; color: #000; }
-
-        /* Mobile Controls Overlay */
+        .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; font-weight: bold; text-decoration: none; border-radius: 8px; cursor: pointer; border: none; font-size: 14px; background: #333; color: white; }
         .controls-layer { position: absolute; bottom: 0; width: 100%; height: 200px; display: flex; z-index: 50; pointer-events: none; }
         .player-touch-zone { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 10px; pointer-events: auto; }
-        .t-btn { background: rgba(0,0,0,0.05); border: 1px dashed rgba(0,0,0,0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: rgba(0,0,0,0.2); font-weight: bold; font-size: 20px; }
-        .t-btn:active { background: rgba(0,0,0,0.1); }
-        
-        canvas { display: block; }
+        .t-btn { background: rgba(0,0,0,0.05); border: 1px dashed rgba(0,0,0,0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: rgba(0,0,0,0.2); font-weight: bold; }
     </style>
 </head>
 <body>
@@ -42,37 +32,33 @@
 
 <div class="controls-layer">
     <div class="player-touch-zone">
-        <div class="t-btn" id="t1-left">←</div>
-        <div class="t-btn" style="grid-column: span 1;" id="t1-up">↑</div>
-        <div class="t-btn" id="t1-right">→</div>
-        <div class="t-btn" style="grid-column: span 3; height: 60px; background: rgba(52, 152, 219, 0.1);" id="t1-punch">PUNCH</div>
+        <div class="t-btn" id="t1-left">←</div><div class="t-btn" id="t1-up">↑</div><div class="t-btn" id="t1-right">→</div>
+        <div class="t-btn" style="grid-column: span 3; height: 60px;" id="t1-punch">PUNCH</div>
     </div>
     <div class="player-touch-zone">
-        <div class="t-btn" id="t2-left">←</div>
-        <div class="t-btn" id="t2-up">↑</div>
-        <div class="t-btn" id="t2-right">→</div>
-        <div class="t-btn" style="grid-column: span 3; height: 60px; background: rgba(231, 76, 60, 0.1);" id="t2-punch">PUNCH</div>
+        <div class="t-btn" id="t2-left">←</div><div class="t-btn" id="t2-up">↑</div><div class="t-btn" id="t2-right">→</div>
+        <div class="t-btn" style="grid-column: span 3; height: 60px;" id="t2-punch">PUNCH</div>
     </div>
 </div>
 
 <div id="victory-screen">
-    <h1 id="winner-text" style="margin-top:0; color:#333; font-size: 22px;">KO!</h1>
-    <a class="btn yt-btn" href="https://www.youtube.com/@SancoOutdoors" target="_blank">🎬 SANCO OUTDOORS</a>
-    <a class="btn esofa-btn" href="https://www.sanangelogives.org/organization/emmanuelschooloffinearts" target="_blank">🎻 TIP ESOFA</a>
-    <button class="btn retry-btn" onclick="location.reload()">REMATCH</button>
+    <h1 id="winner-text">KO!</h1>
+    <button class="btn" onclick="location.reload()">REMATCH</button>
+    <a href="index.html" class="btn" style="background:#00ffff; color:#000;">BACK TO HUB</a>
 </div>
 
 <script>
-const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
+// --- ARCADE CONNECTION ---
+const activeSkin = localStorage.getItem('active_skin_hex') || '#3498db';
+document.documentElement.style.setProperty('--p1-color', activeSkin);
 
+const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
 const engine = Engine.create();
 const render = Render.create({
-    element: document.body,
-    engine: engine,
+    element: document.body, engine: engine,
     options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#f4f4f4' }
 });
 
-// Physics setup
 const floor = Bodies.rectangle(window.innerWidth/2, window.innerHeight - 25, window.innerWidth, 50, { isStatic: true, render: { fillStyle: '#333' } });
 const ceiling = Bodies.rectangle(window.innerWidth/2, 25, window.innerWidth, 50, { isStatic: true, render: { fillStyle: '#333' } });
 const wallL = Bodies.rectangle(-10, window.innerHeight/2, 20, window.innerHeight, { isStatic: true });
@@ -86,24 +72,21 @@ function createStickman(x, y, color, id) {
     return { body: compound, hp: 100, color: color, cd: 0 };
 }
 
-const p1 = createStickman(window.innerWidth * 0.2, 500, '#3498db', 'p1');
+const p1 = createStickman(window.innerWidth * 0.2, 500, activeSkin, 'p1');
 const p2 = createStickman(window.innerWidth * 0.8, 500, '#e74c3c', 'p2');
 Composite.add(engine.world, [p1.body, p2.body]);
 
 const keys = {};
 const touch = { p1L: false, p1R: false, p1U: false, p2L: false, p2R: false, p2U: false };
 
-// Key listeners
 window.addEventListener('keydown', e => keys[e.code] = true);
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-// Touch listeners helper
-function bindTouch(id, playerKey) {
+function bindTouch(id, k) {
     const el = document.getElementById(id);
-    el.addEventListener('touchstart', (e) => { e.preventDefault(); touch[playerKey] = true; });
-    el.addEventListener('touchend', (e) => { e.preventDefault(); touch[playerKey] = false; });
+    el.addEventListener('touchstart', (e) => { e.preventDefault(); touch[k] = true; });
+    el.addEventListener('touchend', (e) => { e.preventDefault(); touch[k] = false; });
 }
-
 bindTouch('t1-left', 'p1L'); bindTouch('t1-right', 'p1R'); bindTouch('t1-up', 'p1U');
 bindTouch('t2-left', 'p2L'); bindTouch('t2-right', 'p2R'); bindTouch('t2-up', 'p2U');
 
@@ -112,23 +95,15 @@ document.getElementById('t2-punch').addEventListener('touchstart', (e) => { e.pr
 
 Events.on(engine, 'beforeUpdate', () => {
     if (p1.hp <= 0 || p2.hp <= 0) return;
-
-    // P1 Movement (Keys + Touch)
     if (keys['KeyA'] || touch.p1L) Body.setVelocity(p1.body, { x: -6, y: p1.body.velocity.y });
     if (keys['KeyD'] || touch.p1R) Body.setVelocity(p1.body, { x: 6, y: p1.body.velocity.y });
     if ((keys['KeyW'] || touch.p1U) && Math.abs(p1.body.velocity.y) < 0.1) Body.setVelocity(p1.body, { x: p1.body.velocity.x, y: -13 });
-    
-    // P2 Movement (Keys + Touch)
     if (keys['ArrowLeft'] || touch.p2L) Body.setVelocity(p2.body, { x: -6, y: p2.body.velocity.y });
     if (keys['ArrowRight'] || touch.p2R) Body.setVelocity(p2.body, { x: 6, y: p2.body.velocity.y });
     if ((keys['ArrowUp'] || touch.p2U) && Math.abs(p2.body.velocity.y) < 0.1) Body.setVelocity(p2.body, { x: p2.body.velocity.x, y: -13 });
-
-    // Combat
     if (keys['KeyS'] && p1.cd <= 0) { p1.cd = 20; checkHit(p1, p2); }
     if (keys['ArrowDown'] && p2.cd <= 0) { p2.cd = 20; checkHit(p2, p1); }
-
-    if(p1.cd > 0) p1.cd--;
-    if(p2.cd > 0) p2.cd--;
+    if(p1.cd > 0) p1.cd--; if(p2.cd > 0) p2.cd--;
 });
 
 function checkHit(attacker, defender) {
@@ -136,8 +111,7 @@ function checkHit(attacker, defender) {
     if (dist < 90) {
         defender.hp -= 10;
         document.getElementById(defender === p1 ? 'p1-hp' : 'p2-hp').style.width = Math.max(0, defender.hp) + '%';
-        const knockDir = (defender.body.position.x > attacker.body.position.x) ? 0.05 : -0.05;
-        Body.applyForce(defender.body, defender.body.position, { x: knockDir, y: -0.05 });
+        Body.applyForce(defender.body, defender.body.position, { x: (defender.body.position.x > attacker.body.position.x ? 0.05 : -0.05), y: -0.05 });
         if (defender.hp <= 0) endGame(attacker === p1 ? "BLUE UNIT WINS" : "RED UNIT WINS");
     }
 }
@@ -145,41 +119,26 @@ function checkHit(attacker, defender) {
 function endGame(msg) {
     document.getElementById('winner-text').innerText = msg;
     document.getElementById('victory-screen').style.display = 'block';
+    // Report to Global Leaderboard (Simulation)
+    localStorage.setItem('stickman_war_last_winner', msg);
 }
 
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
     [p1, p2].forEach(p => {
         const pos = p.body.position;
-        const opponent = (p === p1) ? p2 : p1;
-        const dir = (opponent.body.position.x > pos.x) ? 1 : -1;
-
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 6;
-        ctx.lineCap = 'round';
-        ctx.save();
-        ctx.translate(pos.x, pos.y);
-        ctx.beginPath();
-        ctx.arc(0, -45, 15, 0, Math.PI * 2); 
-        ctx.moveTo(0, -30); ctx.lineTo(0, 15); 
-        ctx.moveTo(0, 15); ctx.lineTo(-15 * dir, 45); 
-        ctx.moveTo(0, 15); ctx.lineTo(15 * dir, 45); 
-        const punchReach = p.cd > 10 ? 40 : 20;
-        ctx.moveTo(0, -15); 
-        ctx.lineTo(punchReach * dir, -15); 
-        ctx.stroke();
-        ctx.restore();
+        const dir = ((p === p1 ? p2 : p1).body.position.x > pos.x) ? 1 : -1;
+        ctx.strokeStyle = p.color; ctx.lineWidth = 6; ctx.lineCap = 'round';
+        ctx.save(); ctx.translate(pos.x, pos.y); ctx.beginPath();
+        ctx.arc(0, -45, 15, 0, Math.PI * 2); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
+        ctx.moveTo(0, 15); ctx.lineTo(-15 * dir, 45); ctx.moveTo(0, 15); ctx.lineTo(15 * dir, 45);
+        ctx.moveTo(0, -15); ctx.lineTo((p.cd > 10 ? 40 : 20) * dir, -15);
+        ctx.stroke(); ctx.restore();
     });
 });
 
 Render.run(render);
 Runner.run(Runner.create(), engine);
-
-// Handle window resize
-window.addEventListener('resize', () => {
-    render.canvas.width = window.innerWidth;
-    render.canvas.height = window.innerHeight;
-});
 </script>
 </body>
 </html>
