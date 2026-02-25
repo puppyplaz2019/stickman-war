@@ -9,9 +9,17 @@
         body { margin: 0; background: #e8e8e8; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
         #ui { position: absolute; width: 100%; top: 20px; display: flex; justify-content: space-around; pointer-events: none; z-index: 10; }
         .hp-container { width: 35%; max-width: 300px; height: 20px; background: #333; border: 2px solid #000; border-radius: 5px; overflow: hidden; }
-        .hp-bar { height: 100%; width: 100%; transition: 0.2s; }
+        .hp-bar { height: 100%; width: 100%; transition: width 0.2s; }
         #p1-hp { background: var(--p1-color, #3498db); } /* Dynamic Color */
         #p2-hp { background: #e74c3c; }
+        
+        /* Rainbow Animation for UI */
+        @keyframes rainbow { 
+            0% { background: red; } 20% { background: orange; } 40% { background: yellow; } 
+            60% { background: green; } 80% { background: blue; } 100% { background: red; } 
+        }
+        .rainbow-bg { animation: rainbow 2s infinite linear !important; }
+
         #victory-screen {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: white; padding: 30px; border: 5px solid #333;
@@ -48,9 +56,16 @@
 </div>
 
 <script>
-// --- ARCADE CONNECTION ---
+// --- ARCADE CONNECTION & RAINBOW LOGIC ---
 const activeSkin = localStorage.getItem('active_skin_hex') || '#3498db';
-document.documentElement.style.setProperty('--p1-color', activeSkin);
+const isRainbow = (activeSkin === 'rainbow');
+
+if (isRainbow) {
+    document.getElementById('p1-hp').classList.add('rainbow-bg');
+    document.documentElement.style.setProperty('--p1-color', 'red'); // fallback
+} else {
+    document.documentElement.style.setProperty('--p1-color', activeSkin);
+}
 
 const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
 const engine = Engine.create();
@@ -72,6 +87,7 @@ function createStickman(x, y, color, id) {
     return { body: compound, hp: 100, color: color, cd: 0 };
 }
 
+// Pass activeSkin. The render loop will handle the 'rainbow' string.
 const p1 = createStickman(window.innerWidth * 0.2, 500, activeSkin, 'p1');
 const p2 = createStickman(window.innerWidth * 0.8, 500, '#e74c3c', 'p2');
 Composite.add(engine.world, [p1.body, p2.body]);
@@ -119,16 +135,29 @@ function checkHit(attacker, defender) {
 function endGame(msg) {
     document.getElementById('winner-text').innerText = msg;
     document.getElementById('victory-screen').style.display = 'block';
-    // Report to Global Leaderboard (Simulation)
     localStorage.setItem('stickman_war_last_winner', msg);
 }
 
+// --- CUSTOM CANVAS RENDERING ---
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
+    
+    // Calculate rainbow color for the current frame
+    let rainbowColor = '';
+    if (isRainbow) {
+        const hue = (Date.now() % 2000) / 2000 * 360; // 0 to 360 over 2 seconds
+        rainbowColor = `hsl(${hue}, 100%, 50%)`;
+    }
+
     [p1, p2].forEach(p => {
         const pos = p.body.position;
         const dir = ((p === p1 ? p2 : p1).body.position.x > pos.x) ? 1 : -1;
-        ctx.strokeStyle = p.color; ctx.lineWidth = 6; ctx.lineCap = 'round';
+        
+        // Apply rainbow color if equipped, otherwise use standard hex
+        ctx.strokeStyle = (p.color === 'rainbow') ? rainbowColor : p.color; 
+        ctx.lineWidth = 6; 
+        ctx.lineCap = 'round';
+        
         ctx.save(); ctx.translate(pos.x, pos.y); ctx.beginPath();
         ctx.arc(0, -45, 15, 0, Math.PI * 2); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
         ctx.moveTo(0, 15); ctx.lineTo(-15 * dir, 45); ctx.moveTo(0, 15); ctx.lineTo(15 * dir, 45);
