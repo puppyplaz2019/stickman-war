@@ -10,21 +10,20 @@
         #ui { position: absolute; width: 100%; top: 20px; display: flex; justify-content: space-around; pointer-events: none; z-index: 10; }
         .hp-container { width: 35%; max-width: 300px; height: 20px; background: #333; border: 2px solid #000; border-radius: 5px; overflow: hidden; }
         .hp-bar { height: 100%; width: 100%; transition: width 0.2s; }
-        #p1-hp { background: var(--p1-color, #3498db); } /* Dynamic Color */
+        #p1-hp { background: var(--p1-color, #3498db); }
         #p2-hp { background: #e74c3c; }
         
-        /* Rainbow Animation for UI */
-        @keyframes rainbow { 
-            0% { background: red; } 20% { background: orange; } 40% { background: yellow; } 
-            60% { background: green; } 80% { background: blue; } 100% { background: red; } 
-        }
+        @keyframes rainbow { 0% { background: red; } 20% { background: orange; } 40% { background: yellow; } 60% { background: green; } 80% { background: blue; } 100% { background: red; } }
         .rainbow-bg { animation: rainbow 2s infinite linear !important; }
 
-        #victory-screen {
+        #victory-screen, #start-menu {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: white; padding: 30px; border: 5px solid #333;
-            text-align: center; display: none; z-index: 1000; width: 80%; max-width: 380px; border-radius: 15px;
+            text-align: center; z-index: 1000; width: 80%; max-width: 380px; border-radius: 15px;
         }
+        
+        #victory-screen { display: none; }
+
         .btn { display: block; width: 100%; padding: 15px; margin: 10px 0; font-weight: bold; text-decoration: none; border-radius: 8px; cursor: pointer; border: none; font-size: 14px; background: #333; color: white; }
         .controls-layer { position: absolute; bottom: 0; width: 100%; height: 200px; display: flex; z-index: 50; pointer-events: none; }
         .player-touch-zone { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 10px; pointer-events: auto; }
@@ -33,17 +32,23 @@
 </head>
 <body>
 
-<div id="ui">
+<div id="start-menu">
+    <h1>STICKMAN WAR</h1>
+    <button class="btn" onclick="initGame(true)" style="background: #3498db;">1 PLAYER (VS CPU)</button>
+    <button class="btn" onclick="initGame(false)" style="background: #e74c3c;">2 PLAYERS (LOCAL)</button>
+</div>
+
+<div id="ui" style="display:none;">
     <div class="hp-container"><div id="p1-hp" class="hp-bar"></div></div>
     <div class="hp-container"><div id="p2-hp" class="hp-bar"></div></div>
 </div>
 
-<div class="controls-layer">
+<div id="controls" class="controls-layer" style="display:none;">
     <div class="player-touch-zone">
         <div class="t-btn" id="t1-left">←</div><div class="t-btn" id="t1-up">↑</div><div class="t-btn" id="t1-right">→</div>
         <div class="t-btn" style="grid-column: span 3; height: 60px;" id="t1-punch">PUNCH</div>
     </div>
-    <div class="player-touch-zone">
+    <div class="player-touch-zone" id="p2-controls">
         <div class="t-btn" id="t2-left">←</div><div class="t-btn" id="t2-up">↑</div><div class="t-btn" id="t2-right">→</div>
         <div class="t-btn" style="grid-column: span 3; height: 60px;" id="t2-punch">PUNCH</div>
     </div>
@@ -56,13 +61,15 @@
 </div>
 
 <script>
-// --- ARCADE CONNECTION & RAINBOW LOGIC ---
+let isCPU = false;
+let gameStarted = false;
+
 const activeSkin = localStorage.getItem('active_skin_hex') || '#3498db';
 const isRainbow = (activeSkin === 'rainbow');
 
 if (isRainbow) {
     document.getElementById('p1-hp').classList.add('rainbow-bg');
-    document.documentElement.style.setProperty('--p1-color', 'red'); // fallback
+    document.documentElement.style.setProperty('--p1-color', 'red');
 } else {
     document.documentElement.style.setProperty('--p1-color', activeSkin);
 }
@@ -74,6 +81,7 @@ const render = Render.create({
     options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#f4f4f4' }
 });
 
+// Setup World
 const floor = Bodies.rectangle(window.innerWidth/2, window.innerHeight - 25, window.innerWidth, 50, { isStatic: true, render: { fillStyle: '#333' } });
 const ceiling = Bodies.rectangle(window.innerWidth/2, 25, window.innerWidth, 50, { isStatic: true, render: { fillStyle: '#333' } });
 const wallL = Bodies.rectangle(-10, window.innerHeight/2, 20, window.innerHeight, { isStatic: true });
@@ -87,7 +95,6 @@ function createStickman(x, y, color, id) {
     return { body: compound, hp: 100, color: color, cd: 0 };
 }
 
-// Pass activeSkin. The render loop will handle the 'rainbow' string.
 const p1 = createStickman(window.innerWidth * 0.2, 500, activeSkin, 'p1');
 const p2 = createStickman(window.innerWidth * 0.8, 500, '#e74c3c', 'p2');
 Composite.add(engine.world, [p1.body, p2.body]);
@@ -103,6 +110,19 @@ function bindTouch(id, k) {
     el.addEventListener('touchstart', (e) => { e.preventDefault(); touch[k] = true; });
     el.addEventListener('touchend', (e) => { e.preventDefault(); touch[k] = false; });
 }
+
+function initGame(vsCPU) {
+    isCPU = vsCPU;
+    gameStarted = true;
+    document.getElementById('start-menu').style.display = 'none';
+    document.getElementById('ui').style.display = 'flex';
+    document.getElementById('controls').style.display = 'flex';
+    if(isCPU) document.getElementById('p2-controls').style.visibility = 'hidden';
+    
+    Render.run(render);
+    Runner.run(Runner.create(), engine);
+}
+
 bindTouch('t1-left', 'p1L'); bindTouch('t1-right', 'p1R'); bindTouch('t1-up', 'p1U');
 bindTouch('t2-left', 'p2L'); bindTouch('t2-right', 'p2R'); bindTouch('t2-up', 'p2U');
 
@@ -110,21 +130,50 @@ document.getElementById('t1-punch').addEventListener('touchstart', (e) => { e.pr
 document.getElementById('t2-punch').addEventListener('touchstart', (e) => { e.preventDefault(); if(p2.cd <= 0) { p2.cd = 20; checkHit(p2, p1); }});
 
 Events.on(engine, 'beforeUpdate', () => {
-    if (p1.hp <= 0 || p2.hp <= 0) return;
+    if (!gameStarted || p1.hp <= 0 || p2.hp <= 0) return;
+
+    // P1 Controls
     if (keys['KeyA'] || touch.p1L) Body.setVelocity(p1.body, { x: -6, y: p1.body.velocity.y });
     if (keys['KeyD'] || touch.p1R) Body.setVelocity(p1.body, { x: 6, y: p1.body.velocity.y });
     if ((keys['KeyW'] || touch.p1U) && Math.abs(p1.body.velocity.y) < 0.1) Body.setVelocity(p1.body, { x: p1.body.velocity.x, y: -13 });
-    if (keys['ArrowLeft'] || touch.p2L) Body.setVelocity(p2.body, { x: -6, y: p2.body.velocity.y });
-    if (keys['ArrowRight'] || touch.p2R) Body.setVelocity(p2.body, { x: 6, y: p2.body.velocity.y });
-    if ((keys['ArrowUp'] || touch.p2U) && Math.abs(p2.body.velocity.y) < 0.1) Body.setVelocity(p2.body, { x: p2.body.velocity.x, y: -13 });
     if (keys['KeyS'] && p1.cd <= 0) { p1.cd = 20; checkHit(p1, p2); }
-    if (keys['ArrowDown'] && p2.cd <= 0) { p2.cd = 20; checkHit(p2, p1); }
+
+    // P2 Logic (CPU or Human)
+    if (isCPU) {
+        runCPU();
+    } else {
+        if (keys['ArrowLeft'] || touch.p2L) Body.setVelocity(p2.body, { x: -6, y: p2.body.velocity.y });
+        if (keys['ArrowRight'] || touch.p2R) Body.setVelocity(p2.body, { x: 6, y: p2.body.velocity.y });
+        if ((keys['ArrowUp'] || touch.p2U) && Math.abs(p2.body.velocity.y) < 0.1) Body.setVelocity(p2.body, { x: p2.body.velocity.x, y: -13 });
+        if (keys['ArrowDown'] && p2.cd <= 0) { p2.cd = 20; checkHit(p2, p1); }
+    }
+
     if(p1.cd > 0) p1.cd--; if(p2.cd > 0) p2.cd--;
 });
 
+function runCPU() {
+    const dist = p1.body.position.x - p2.body.position.x;
+    
+    // Movement logic
+    if (Math.abs(dist) > 70) {
+        Body.setVelocity(p2.body, { x: dist > 0 ? 4.5 : -4.5, y: p2.body.velocity.y });
+    }
+
+    // Jump logic if player is higher
+    if (p1.body.position.y < p2.body.position.y - 50 && Math.abs(p2.body.velocity.y) < 0.1) {
+        Body.setVelocity(p2.body, { x: p2.body.velocity.x, y: -13 });
+    }
+
+    // Attack logic
+    if (Math.abs(dist) < 85 && p2.cd <= 0) {
+        p2.cd = 30; // CPU punches slightly slower than human
+        checkHit(p2, p1);
+    }
+}
+
 function checkHit(attacker, defender) {
     const dist = Vector.magnitude(Vector.sub(attacker.body.position, defender.body.position));
-    if (dist < 90) {
+    if (dist < 95) {
         defender.hp -= 10;
         document.getElementById(defender === p1 ? 'p1-hp' : 'p2-hp').style.width = Math.max(0, defender.hp) + '%';
         Body.applyForce(defender.body, defender.body.position, { x: (defender.body.position.x > attacker.body.position.x ? 0.05 : -0.05), y: -0.05 });
@@ -133,41 +182,23 @@ function checkHit(attacker, defender) {
 }
 
 function endGame(msg) {
+    gameStarted = false;
     document.getElementById('winner-text').innerText = msg;
     document.getElementById('victory-screen').style.display = 'block';
-    localStorage.setItem('stickman_war_last_winner', msg);
 }
 
-// --- CUSTOM CANVAS RENDERING ---
 Events.on(render, 'afterRender', () => {
     const ctx = render.context;
-    
-    // Calculate rainbow color for the current frame
     let rainbowColor = '';
     if (isRainbow) {
-        const hue = (Date.now() % 2000) / 2000 * 360; // 0 to 360 over 2 seconds
+        const hue = (Date.now() % 2000) / 2000 * 360;
         rainbowColor = `hsl(${hue}, 100%, 50%)`;
     }
 
     [p1, p2].forEach(p => {
         const pos = p.body.position;
-        const dir = ((p === p1 ? p2 : p1).body.position.x > pos.x) ? 1 : -1;
+        const target = (p === p1 ? p2 : p1);
+        const dir = (target.body.position.x > pos.x) ? 1 : -1;
         
-        // Apply rainbow color if equipped, otherwise use standard hex
         ctx.strokeStyle = (p.color === 'rainbow') ? rainbowColor : p.color; 
-        ctx.lineWidth = 6; 
-        ctx.lineCap = 'round';
-        
-        ctx.save(); ctx.translate(pos.x, pos.y); ctx.beginPath();
-        ctx.arc(0, -45, 15, 0, Math.PI * 2); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
-        ctx.moveTo(0, 15); ctx.lineTo(-15 * dir, 45); ctx.moveTo(0, 15); ctx.lineTo(15 * dir, 45);
-        ctx.moveTo(0, -15); ctx.lineTo((p.cd > 10 ? 40 : 20) * dir, -15);
-        ctx.stroke(); ctx.restore();
-    });
-});
-
-Render.run(render);
-Runner.run(Runner.create(), engine);
-</script>
-</body>
-</html>
+        ctx.lineWidth = 6;
