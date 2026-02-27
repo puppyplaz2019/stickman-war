@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stickman War: Skin Fix</title>
+    <title>Stickman War: Keyboard Fixed</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { margin: 0; background: #1a1a1a; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
@@ -32,6 +32,7 @@
     <button class="btn" onclick="startGame(true, 'EASY')" style="background: #2ecc71;">EASY CPU</button>
     <button class="btn" onclick="startGame(true, 'GOD')" style="background: #000; border: 2px solid red; color: red;">GOD AI</button>
     <button class="btn" onclick="startGame(false)" style="background: #e74c3c;">LOCAL 2 PLAYERS</button>
+    <p style="color: #666; font-size: 10px; margin-top: 10px;">P1: WASD + Shift (Shield) | P2: Arrows + 0 (Shield)</p>
 </div>
 
 <div id="ui">
@@ -43,12 +44,12 @@
     <div class="player-touch-zone">
         <div class="t-btn" id="t1-left">←</div><div class="t-btn" id="t1-up">↑</div><div class="t-btn" id="t1-right">→</div>
         <div class="t-btn" style="background: #f39c12;" id="t1-block">SHIELD</div>
-        <div class="t-btn" style="grid-column: span 2; background: #3498db;" id="t1-punch">PUNCH</div>
+        <div class="t-btn" style="grid-column: span 2; background: #3498db;" id="t1-punch">PUNCH (S)</div>
     </div>
     <div class="player-touch-zone" id="p2-touch-ui">
         <div class="t-btn" id="t2-left">←</div><div class="t-btn" id="t2-up">↑</div><div class="t-btn" id="t2-right">→</div>
         <div class="t-btn" style="background: #f39c12;" id="t2-block">SHIELD</div>
-        <div class="t-btn" style="grid-column: span 2; background: #e74c3c;" id="t2-punch">PUNCH</div>
+        <div class="t-btn" style="grid-column: span 2; background: #e74c3c;" id="t2-punch">PUNCH (↓)</div>
     </div>
 </div>
 
@@ -83,7 +84,15 @@ const p2 = createS(window.innerWidth*0.8, 500, '#e74c3c', 'p2');
 Composite.add(engine.world, [floor, ceiling, wallL, wallR, p1.body, p2.body]);
 
 const keys = {}, touch = { p1L: false, p1R: false, p1U: false, p1B: false, p2L: false, p2R: false, p2U: false, p2B: false };
-window.onkeydown = e => keys[e.code] = true; window.onkeyup = e => keys[e.code] = false;
+
+// KEYBOARD HANDLING
+window.onkeydown = e => {
+    keys[e.code] = true;
+    // Check for single-press punch keys
+    if (e.code === 'KeyS') punch(p1, p2);
+    if (e.code === 'ArrowDown' && !isCPU) punch(p2, p1);
+};
+window.onkeyup = e => keys[e.code] = false;
 
 function bind(id, k) {
     const el = document.getElementById(id);
@@ -92,7 +101,13 @@ function bind(id, k) {
 }
 ['t1-left','p1L','t1-right','p1R','t1-up','p1U','t1-block','p1B','t2-left','p2L','t2-right','p2R','t2-up','p2U', 't2-block','p2B'].forEach((v,i,a)=> i%2==0 && bind(v,a[i+1]));
 
-function punch(a, d) { if(gameStarted && a.cd <= 0 && !a.isB) { a.cd = 20; a.isP = true; hit(a, d); setTimeout(()=>a.isP=false, 150); }}
+function punch(a, d) { 
+    if(gameStarted && a.cd <= 0 && !a.isB) { 
+        a.cd = 20; a.isP = true; hit(a, d); 
+        setTimeout(()=>a.isP=false, 150); 
+    }
+}
+
 document.getElementById('t1-punch').onmousedown = document.getElementById('t1-punch').ontouchstart = (e) => { e.preventDefault(); punch(p1, p2); };
 document.getElementById('t2-punch').onmousedown = document.getElementById('t2-punch').ontouchstart = (e) => { e.preventDefault(); punch(p2, p1); };
 
@@ -107,12 +122,15 @@ function startGame(cpu, diff) {
 
 Events.on(engine, 'beforeUpdate', () => {
     if (!gameStarted) return;
+
+    // P1 Keyboard/Touch Movement
     p1.isB = (keys['ShiftLeft'] || touch.p1B);
     if (!p1.isB) {
         if (keys['KeyA'] || touch.p1L) Body.setVelocity(p1.body, { x: -7, y: p1.body.velocity.y });
         if (keys['KeyD'] || touch.p1R) Body.setVelocity(p1.body, { x: 7, y: p1.body.velocity.y });
         if ((keys['KeyW'] || touch.p1U) && Math.abs(p1.body.velocity.y) < 0.1) Body.setVelocity(p1.body, { x: p1.body.velocity.x, y: -14 });
     }
+
     if (isCPU) {
         let d = p1.body.position.x - p2.body.position.x;
         if (difficulty === 'GOD') {
@@ -124,7 +142,8 @@ Events.on(engine, 'beforeUpdate', () => {
             if (Math.abs(d) < 95 && p2.cd <= 0 && Math.random() < 0.05) { p2.cd = 30; hit(p2, p1); }
         }
     } else {
-        p2.isB = (keys['Numpad0'] || touch.p2B);
+        // P2 Keyboard/Touch Movement
+        p2.isB = (keys['Digit0'] || keys['Numpad0'] || touch.p2B);
         if (!p2.isB) {
             if (keys['ArrowLeft'] || touch.p2L) Body.setVelocity(p2.body, { x: -7, y: p2.body.velocity.y });
             if (keys['ArrowRight'] || touch.p2R) Body.setVelocity(p2.body, { x: 7, y: p2.body.velocity.y });
