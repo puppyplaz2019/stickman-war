@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stickman War: Final Arena</title>
+    <title>Stickman War: Skin Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { margin: 0; background: #1a1a1a; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
@@ -12,15 +12,14 @@
         .hp-bar { height: 100%; width: 100%; transition: width 0.1s; }
         #p1-hp { background: var(--p1-color, #3498db); }
         #p2-hp { background: #e74c3c; }
-        
+        @keyframes rbw { 0% { background: red; } 33% { background: green; } 66% { background: blue; } 100% { background: red; } }
+        .rainbow-skin { animation: rbw 2s infinite linear !important; }
         #victory-screen, #start-menu {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: white; padding: 30px; border: 5px solid #333;
-            text-align: center; z-index: 1000; width: 80%; max-width: 380px; border-radius: 15px;
+            background: white; padding: 30px; border: 5px solid #333; text-align: center; z-index: 1000; width: 80%; max-width: 380px; border-radius: 15px;
         }
         #victory-screen { display: none; }
         .btn { display: block; width: 100%; padding: 12px; margin: 8px 0; font-weight: bold; cursor: pointer; border: none; font-size: 14px; background: #333; color: white; border-radius: 8px; }
-        
         .controls-layer { position: absolute; bottom: 0; width: 100%; height: 220px; display: none; z-index: 50; pointer-events: none; }
         .player-touch-zone { flex: 1; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 10px; pointer-events: auto; }
         .t-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: bold; cursor: pointer; }
@@ -55,70 +54,50 @@
 
 <div id="victory-screen">
     <h1 id="winner-text">KO!</h1>
-    <button class="btn" onclick="location.reload()">PLAY AGAIN</button>
+    <button class="btn" onclick="location.reload()">REMATCH</button>
 </div>
 
 <script>
 let isCPU = false, difficulty = 'EASY', gameStarted = false;
-const activeSkin = localStorage.getItem('active_skin_hex') || '#3498db';
-document.documentElement.style.setProperty('--p1-color', activeSkin === 'rainbow' ? 'red' : activeSkin);
+const savedSkin = localStorage.getItem('active_skin_hex') || '#3498db';
+if(savedSkin === 'rainbow') document.getElementById('p1-hp').classList.add('rainbow-skin');
+else document.documentElement.style.setProperty('--p1-color', savedSkin);
 
 const { Engine, Render, Runner, Bodies, Composite, Body, Events, Vector } = Matter;
 const engine = Engine.create();
-const render = Render.create({
-    element: document.body, engine: engine,
-    options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#111' }
-});
+const render = Render.create({ element: document.body, engine: engine, options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#111' } });
 
 const floor = Bodies.rectangle(window.innerWidth/2, window.innerHeight+50, window.innerWidth*2, 200, { isStatic: true });
 const ceiling = Bodies.rectangle(window.innerWidth/2, -150, window.innerWidth*2, 300, { isStatic: true });
-const wallL = Bodies.rectangle(-150, window.innerHeight/2, 300, window.innerHeight*2, { isStatic: true });
-const wallR = Bodies.rectangle(window.innerWidth+150, window.innerHeight/2, 300, window.innerHeight*2, { isStatic: true });
+const wallL = Bodies.rectangle(-150, window.innerHeight/2, 300, window.innerHeight, { isStatic: true });
+const wallR = Bodies.rectangle(window.innerWidth+150, window.innerHeight/2, 300, window.innerHeight, { isStatic: true });
 
-function createStickman(x, y, color, id) {
-    const head = Bodies.circle(x, y-50, 18, { friction: 0.1, label: id });
-    const body = Bodies.rectangle(x, y, 12, 60, { friction: 0.1, label: id });
-    const compound = Body.create({ parts: [body, head], inertia: Infinity, label: id });
-    return { body: compound, hp: 100, color: color, cd: 0, isPunching: false, isBlocking: false };
+function createS(x, y, color, id) {
+    const h = Bodies.circle(x, y-50, 18, { label: id });
+    const b = Bodies.rectangle(x, y, 12, 60, { label: id });
+    return { body: Body.create({ parts: [b, h], inertia: Infinity }), hp: 100, color: color, cd: 0, isP: false, isB: false };
 }
 
-const p1 = createStickman(window.innerWidth*0.2, 500, activeSkin, 'p1');
-const p2 = createStickman(window.innerWidth*0.8, 500, '#e74c3c', 'p2');
+const p1 = createS(window.innerWidth*0.2, 500, savedSkin, 'p1');
+const p2 = createS(window.innerWidth*0.8, 500, '#e74c3c', 'p2');
 Composite.add(engine.world, [floor, ceiling, wallL, wallR, p1.body, p2.body]);
 
-const keys = {};
-const touch = { p1L: false, p1R: false, p1U: false, p1B: false, p2L: false, p2R: false, p2U: false, p2B: false };
+const keys = {}, touch = { p1L: false, p1R: false, p1U: false, p1B: false, p2L: false, p2R: false, p2U: false, p2B: false };
+window.onkeydown = e => keys[e.code] = true; window.onkeyup = e => keys[e.code] = false;
 
-window.addEventListener('keydown', e => keys[e.code] = true);
-window.addEventListener('keyup', e => keys[e.code] = false);
-
-function setupInput(id, key) {
+function bind(id, k) {
     const el = document.getElementById(id);
-    const start = (e) => { e.preventDefault(); touch[key] = true; };
-    const end = (e) => { e.preventDefault(); touch[key] = false; };
-    el.addEventListener('touchstart', start); el.addEventListener('touchend', end);
-    el.addEventListener('mousedown', start); el.addEventListener('mouseup', end);
+    el.onmousedown = el.ontouchstart = (e) => { e.preventDefault(); touch[k] = true; };
+    el.onmouseup = el.ontouchend = (e) => { e.preventDefault(); touch[k] = false; };
 }
+['t1-left','p1L','t1-right','p1R','t1-up','p1U','t1-block','p1B','t2-left','p2L','t2-right','p2R','t2-up','p2U', 't2-block','p2B'].forEach((v,i,a)=> i%2==0 && bind(v,a[i+1]));
 
-setupInput('t1-left', 'p1L'); setupInput('t1-right', 'p1R'); setupInput('t1-up', 'p1U'); setupInput('t1-block', 'p1B');
-setupInput('t2-left', 'p2L'); setupInput('t2-right', 'p2R'); setupInput('t2-up', 'p2U'); setupInput('t2-block', 'p2B');
+function punch(a, d) { if(gameStarted && a.cd <= 0 && !a.isB) { a.cd = 20; a.isP = true; hit(a, d); setTimeout(()=>a.isP=false, 150); }}
+document.getElementById('t1-punch').onmousedown = document.getElementById('t1-punch').ontouchstart = (e) => { e.preventDefault(); punch(p1, p2); };
+document.getElementById('t2-punch').onmousedown = document.getElementById('t2-punch').ontouchstart = (e) => { e.preventDefault(); punch(p2, p1); };
 
-function doPunch(attacker, defender) {
-    if(gameStarted && attacker.cd <= 0 && !attacker.isBlocking) {
-        attacker.cd = 20;
-        attacker.isPunching = true;
-        checkHit(attacker, defender);
-        setTimeout(() => { attacker.isPunching = false; }, 150);
-    }
-}
-
-document.getElementById('t1-punch').addEventListener('touchstart', (e) => { e.preventDefault(); doPunch(p1, p2); });
-document.getElementById('t1-punch').addEventListener('mousedown', (e) => { e.preventDefault(); doPunch(p1, p2); });
-document.getElementById('t2-punch').addEventListener('touchstart', (e) => { e.preventDefault(); doPunch(p2, p1); });
-document.getElementById('t2-punch').addEventListener('mousedown', (e) => { e.preventDefault(); doPunch(p2, p1); });
-
-function startGame(vsCPU, diff) {
-    isCPU = vsCPU; difficulty = diff; gameStarted = true;
+function startGame(cpu, diff) {
+    isCPU = cpu; difficulty = diff; gameStarted = true;
     document.getElementById('start-menu').style.display = 'none';
     document.getElementById('ui').style.display = 'flex';
     document.getElementById('controls').style.display = 'flex';
@@ -127,62 +106,42 @@ function startGame(vsCPU, diff) {
 }
 
 Events.on(engine, 'beforeUpdate', () => {
-    if (!gameStarted || p1.hp <= 0 || p2.hp <= 0) return;
-
-    // P1 Movement
-    p1.isBlocking = (keys['ShiftLeft'] || touch.p1B);
-    if (!p1.isBlocking) {
+    if (!gameStarted) return;
+    p1.isB = (keys['ShiftLeft'] || touch.p1B);
+    if (!p1.isB) {
         if (keys['KeyA'] || touch.p1L) Body.setVelocity(p1.body, { x: -7, y: p1.body.velocity.y });
         if (keys['KeyD'] || touch.p1R) Body.setVelocity(p1.body, { x: 7, y: p1.body.velocity.y });
         if ((keys['KeyW'] || touch.p1U) && Math.abs(p1.body.velocity.y) < 0.1) Body.setVelocity(p1.body, { x: p1.body.velocity.x, y: -14 });
-        if (keys['KeyS'] && p1.cd <= 0) doPunch(p1, p2);
     }
-
-    // P2 Movement (CPU or Human)
     if (isCPU) {
-        if (difficulty === 'GOD') runGodAI(); else runEasyAI();
+        let d = p1.body.position.x - p2.body.position.x;
+        if (difficulty === 'GOD') {
+            if (p1.isB && Math.abs(d) < 130) Body.setVelocity(p2.body, { x: d > 0 ? -5 : 5, y: p2.body.velocity.y });
+            else if (Math.abs(d) > 80) Body.setVelocity(p2.body, { x: d > 0 ? 8 : -8, y: p2.body.velocity.y });
+            if (Math.abs(d) < 100 && p2.cd <= 0 && !p1.isB) { p2.cd = 16; hit(p2, p1); }
+        } else {
+            if (Math.abs(d) > 80) Body.setVelocity(p2.body, { x: d > 0 ? 4 : -4, y: p2.body.velocity.y });
+            if (Math.abs(d) < 95 && p2.cd <= 0 && Math.random() < 0.05) { p2.cd = 30; hit(p2, p1); }
+        }
     } else {
-        p2.isBlocking = (keys['Numpad0'] || touch.p2B);
-        if (!p2.isBlocking) {
+        p2.isB = (keys['Numpad0'] || touch.p2B);
+        if (!p2.isB) {
             if (keys['ArrowLeft'] || touch.p2L) Body.setVelocity(p2.body, { x: -7, y: p2.body.velocity.y });
             if (keys['ArrowRight'] || touch.p2R) Body.setVelocity(p2.body, { x: 7, y: p2.body.velocity.y });
             if ((keys['ArrowUp'] || touch.p2U) && Math.abs(p2.body.velocity.y) < 0.1) Body.setVelocity(p2.body, { x: p2.body.velocity.x, y: -14 });
-            if (keys['ArrowDown'] && p2.cd <= 0) doPunch(p2, p1);
         }
     }
-
     if(p1.cd > 0) p1.cd--; if(p2.cd > 0) p2.cd--;
     if (p1.body.position.y < 0) Body.setPosition(p1.body, { x: p1.body.position.x, y: 100 });
     if (p2.body.position.y < 0) Body.setPosition(p2.body, { x: p2.body.position.x, y: 100 });
 });
 
-function runEasyAI() {
-    const dist = p1.body.position.x - p2.body.position.x;
-    if (Math.abs(dist) > 80) Body.setVelocity(p2.body, { x: dist > 0 ? 4 : -4, y: p2.body.velocity.y });
-    if (Math.abs(dist) < 95 && p2.cd <= 0 && Math.random() < 0.05) { p2.cd = 30; checkHit(p2, p1); }
-}
-
-function runGodAI() {
-    const dist = p1.body.position.x - p2.body.position.x;
-    const absDist = Math.abs(dist);
-    if (p1.isBlocking && absDist < 130) Body.setVelocity(p2.body, { x: dist > 0 ? -5 : 5, y: p2.body.velocity.y });
-    else if (absDist > 80) Body.setVelocity(p2.body, { x: dist > 0 ? 8 : -8, y: p2.body.velocity.y });
-    if (absDist < 100 && p2.cd <= 0 && !p1.isBlocking) { p2.cd = 16; checkHit(p2, p1); }
-}
-
-function checkHit(attacker, defender) {
-    if (defender.isBlocking) return;
-    const dist = Vector.magnitude(Vector.sub(attacker.body.position, defender.body.position));
-    if (dist < 105) {
-        defender.hp -= 10;
-        document.getElementById(defender === p1 ? 'p1-hp' : 'p2-hp').style.width = Math.max(0, defender.hp) + '%';
-        Body.applyForce(defender.body, defender.body.position, { x: (defender.body.position.x > attacker.body.position.x ? 0.08 : -0.08), y: -0.05 });
-        if (defender.hp <= 0) {
-            gameStarted = false;
-            document.getElementById('winner-text').innerText = attacker === p1 ? "BLUE WINS" : "RED WINS";
-            document.getElementById('victory-screen').style.display = 'block';
-        }
-    }
+function hit(a, d) {
+    if (d.isB || Vector.magnitude(Vector.sub(a.body.position, d.body.position)) > 105) return;
+    d.hp -= 10;
+    document.getElementById(d === p1 ? 'p1-hp' : 'p2-hp').style.width = Math.max(0, d.hp) + '%';
+    Body.applyForce(d.body, d.body.position, { x: (d.body.position.x > a.body.position.x ? 0.08 : -0.08), y: -0.05 });
+    if (d.hp <= 0) { gameStarted = false; document.getElementById('winner-text').innerText = a === p1 ? "P1 WINS" : "P2 WINS"; document.getElementById('victory-screen').style.display = 'block'; }
 }
 
 Events.on(render, 'afterRender', () => {
@@ -190,17 +149,15 @@ Events.on(render, 'afterRender', () => {
     [p1, p2].forEach(p => {
         const pos = p.body.position;
         const dir = ((p === p1 ? p2 : p1).body.position.x > pos.x) ? 1 : -1;
-        ctx.strokeStyle = (p === p2 && isCPU && difficulty === 'GOD') ? '#ff0000' : (p === p1 ? activeSkin : '#e74c3c'); 
+        let c = p.color;
+        if(c === 'rainbow') c = `hsl(${Date.now()/10 % 360}, 70%, 50%)`;
+        ctx.strokeStyle = (p === p2 && isCPU && difficulty === 'GOD') ? '#f00' : c;
         ctx.lineWidth = 6; ctx.lineCap = 'round';
         if(p === p2 && isCPU && difficulty === 'GOD') { ctx.shadowBlur = 15; ctx.shadowColor = "red"; }
         ctx.save(); ctx.translate(pos.x, pos.y); ctx.beginPath();
-        ctx.arc(0, -45, 15, 0, Math.PI * 2); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
-        if (p.isBlocking) {
-            ctx.moveTo(0, -10); ctx.lineTo(15 * dir, -35); ctx.moveTo(0, -10); ctx.lineTo(10 * dir, -35);
-        } else {
-            ctx.moveTo(0, 15); ctx.lineTo(-15 * dir, 45); ctx.moveTo(0, 15); ctx.lineTo(15 * dir, 45);
-            ctx.moveTo(0, -15); ctx.lineTo((p.cd > 8 ? 45 : 20) * dir, -15);
-        }
+        ctx.arc(0, -45, 15, 0, 7); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
+        if (p.isB) { ctx.moveTo(0, -10); ctx.lineTo(15 * dir, -35); ctx.moveTo(0, -10); ctx.lineTo(10 * dir, -35); }
+        else { ctx.moveTo(0, 15); ctx.lineTo(-15 * dir, 45); ctx.moveTo(0, 15); ctx.lineTo(15 * dir, 45); ctx.moveTo(0, -15); ctx.lineTo((p.cd > 8 ? 45 : 20) * dir, -15); }
         ctx.stroke(); ctx.restore(); ctx.shadowBlur = 0;
     });
 });
