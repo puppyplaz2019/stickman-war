@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stickman War: Fixed & Balanced</title>
+    <title>Stickman War: Fixed & Multi-Mode</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         body { margin: 0; background: #1a1a1a; font-family: 'Arial', sans-serif; overflow: hidden; touch-action: none; user-select: none; }
@@ -11,7 +11,7 @@
         .hp-container { width: 35%; max-width: 300px; height: 20px; background: #333; border: 2px solid #000; border-radius: 5px; overflow: hidden; }
         .hp-bar { height: 100%; width: 100%; transition: width 0.1s; }
         #p1-hp { background: var(--p1-color, #3498db); }
-        #p2-hp { background: #ff0000; box-shadow: 0 0 10px #ff0000; }
+        #p2-hp { background: #ff0000; }
         
         #victory-screen, #start-menu {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -28,8 +28,9 @@
 <body>
 
 <div id="start-menu">
-    <h1 style="color: #ff0000;">ULTIMATE WAR</h1>
-    <button class="btn" onclick="startGame(true, 'GOD')" style="background: #000; border: 2px solid red; color: red;">FIGHT GOD AI</button>
+    <h1>STICKMAN WAR</h1>
+    <button class="btn" onclick="startGame(true, 'EASY')" style="background: #2ecc71;">EASY MODE</button>
+    <button class="btn" onclick="startGame(true, 'GOD')" style="background: #000; border: 2px solid red; color: red;">GOD MODE AI</button>
     <button class="btn" onclick="startGame(false)" style="background: #e74c3c;">2 PLAYERS</button>
 </div>
 
@@ -42,17 +43,17 @@
     <div class="player-touch-zone">
         <div class="t-btn" id="t1-left">←</div><div class="t-btn" id="t1-up">↑</div><div class="t-btn" id="t1-right">→</div>
         <div class="t-btn" style="grid-column: span 1; height: 60px; background: #f39c12;" id="t1-block">BLOCK</div>
-        <div class="t-btn" style="grid-column: span 2; height: 60px;" id="t1-punch">PUNCH</div>
+        <div class="t-btn" style="grid-column: span 2; height: 60px; background: #3498db;" id="t1-punch">PUNCH</div>
     </div>
 </div>
 
 <div id="victory-screen">
     <h1 id="winner-text">KO!</h1>
-    <button class="btn" onclick="location.reload()">RETRY</button>
+    <button class="btn" onclick="location.reload()">REMATCH</button>
 </div>
 
 <script>
-let isCPU = false, difficulty = 'GOD', gameStarted = false;
+let isCPU = false, difficulty = 'EASY', gameStarted = false;
 const activeSkin = localStorage.getItem('active_skin_hex') || '#3498db';
 document.documentElement.style.setProperty('--p1-color', activeSkin === 'rainbow' ? 'red' : activeSkin);
 
@@ -63,7 +64,6 @@ const render = Render.create({
     options: { width: window.innerWidth, height: window.innerHeight, wireframes: false, background: '#111' }
 });
 
-// THICKER BOUNDARIES to prevent "Through the roof" glitches
 const floor = Bodies.rectangle(window.innerWidth/2, window.innerHeight+50, window.innerWidth*2, 200, { isStatic: true });
 const ceiling = Bodies.rectangle(window.innerWidth/2, -150, window.innerWidth*2, 300, { isStatic: true });
 const wallL = Bodies.rectangle(-150, window.innerHeight/2, 300, window.innerHeight*2, { isStatic: true });
@@ -95,11 +95,20 @@ function setupInput(id, key) {
 setupInput('t1-left', 'p1L'); setupInput('t1-right', 'p1R'); 
 setupInput('t1-up', 'p1U'); setupInput('t1-block', 'p1B');
 
-const p1Punch = (e) => { e.preventDefault(); if(gameStarted && p1.cd <= 0 && !p1.isBlocking) { p1.cd = 20; p1.isPunching = true; checkHit(p1, p2); setTimeout(()=>p1.isPunching=false, 150); }};
-document.getElementById('t1-punch').addEventListener('mousedown', p1Punch);
-document.getElementById('t1-punch').addEventListener('touchstart', p1Punch);
+// PUNCH FIX: Combined listener for reliable triggering
+const performP1Punch = (e) => {
+    if(e) e.preventDefault();
+    if(gameStarted && p1.cd <= 0 && !p1.isBlocking) {
+        p1.cd = 20;
+        p1.isPunching = true;
+        checkHit(p1, p2);
+        setTimeout(() => { p1.isPunching = false; }, 150);
+    }
+};
+document.getElementById('t1-punch').addEventListener('mousedown', performP1Punch);
+document.getElementById('t1-punch').addEventListener('touchstart', performP1Punch);
 
-function startGame(vsCPU, diff = 'GOD') {
+function startGame(vsCPU, diff) {
     isCPU = vsCPU; difficulty = diff; gameStarted = true;
     document.getElementById('start-menu').style.display = 'none';
     document.getElementById('ui').style.display = 'flex';
@@ -110,45 +119,52 @@ function startGame(vsCPU, diff = 'GOD') {
 Events.on(engine, 'beforeUpdate', () => {
     if (!gameStarted || p1.hp <= 0 || p2.hp <= 0) return;
 
-    // P1 BLOCK LOGIC
     p1.isBlocking = (keys['ShiftLeft'] || touch.p1B);
 
     if (!p1.isBlocking) {
         if (keys['KeyA'] || touch.p1L) Body.setVelocity(p1.body, { x: -7, y: p1.body.velocity.y });
         if (keys['KeyD'] || touch.p1R) Body.setVelocity(p1.body, { x: 7, y: p1.body.velocity.y });
         if ((keys['KeyW'] || touch.p1U) && Math.abs(p1.body.velocity.y) < 0.1) Body.setVelocity(p1.body, { x: p1.body.velocity.x, y: -14 });
+        if (keys['KeyS'] && p1.cd <= 0) performP1Punch(); // Keyboard punch
     } else {
         Body.setVelocity(p1.body, { x: 0, y: p1.body.velocity.y });
     }
 
-    if (isCPU) runGodAI();
+    if (isCPU) {
+        if (difficulty === 'GOD') runGodAI();
+        else runEasyAI();
+    }
+    
     if(p1.cd > 0) p1.cd--; if(p2.cd > 0) p2.cd--;
-
-    // Containment: Stop characters from flying off-screen
-    if (p1.body.position.y < 0) Body.setPosition(p1.body, { x: p1.body.position.x, y: 50 });
-    if (p2.body.position.y < 0) Body.setPosition(p2.body, { x: p2.body.position.x, y: 50 });
+    
+    // Anti-Roof containment
+    if (p1.body.position.y < 0) Body.setPosition(p1.body, { x: p1.body.position.x, y: 100 });
+    if (p2.body.position.y < 0) Body.setPosition(p2.body, { x: p2.body.position.x, y: 100 });
 });
+
+function runEasyAI() {
+    const dist = p1.body.position.x - p2.body.position.x;
+    if (Math.abs(dist) > 80) Body.setVelocity(p2.body, { x: dist > 0 ? 4 : -4, y: p2.body.velocity.y });
+    if (Math.abs(dist) < 95 && p2.cd <= 0 && Math.random() < 0.05) {
+        p2.cd = 30;
+        checkHit(p2, p1);
+    }
+}
 
 function runGodAI() {
     const dist = p1.body.position.x - p2.body.position.x;
     const absDist = Math.abs(dist);
-    
-    // AI avoids player while they block, or rushes if they don't
-    if (p1.isBlocking && absDist < 120) {
-        Body.setVelocity(p2.body, { x: dist > 0 ? -5 : 5, y: p2.body.velocity.y });
-    } else if (absDist > 80) {
-        Body.setVelocity(p2.body, { x: dist > 0 ? 7 : -7, y: p2.body.velocity.y });
-    }
+    if (p1.isBlocking && absDist < 130) Body.setVelocity(p2.body, { x: dist > 0 ? -5 : 5, y: p2.body.velocity.y });
+    else if (absDist > 80) Body.setVelocity(p2.body, { x: dist > 0 ? 7.5 : -7.5, y: p2.body.velocity.y });
 
-    if (absDist < 95 && p2.cd <= 0 && !p1.isBlocking) {
-        p2.cd = 18;
+    if (absDist < 100 && p2.cd <= 0 && !p1.isBlocking) {
+        p2.cd = 16;
         checkHit(p2, p1);
     }
 }
 
 function checkHit(attacker, defender) {
-    if (defender.isBlocking) return; // Blocked!
-
+    if (defender.isBlocking) return;
     const dist = Vector.magnitude(Vector.sub(attacker.body.position, defender.body.position));
     if (dist < 105) {
         defender.hp -= 10;
@@ -156,7 +172,7 @@ function checkHit(attacker, defender) {
         Body.applyForce(defender.body, defender.body.position, { x: (defender.body.position.x > attacker.body.position.x ? 0.08 : -0.08), y: -0.05 });
         if (defender.hp <= 0) {
             gameStarted = false;
-            document.getElementById('winner-text').innerText = attacker === p1 ? "GOD DEFEATED" : "GOD MODE: KO";
+            document.getElementById('winner-text').innerText = attacker === p1 ? "VICTORY" : "DEFEAT";
             document.getElementById('victory-screen').style.display = 'block';
         }
     }
@@ -169,25 +185,17 @@ Events.on(render, 'afterRender', () => {
         const dir = ((p === p1 ? p2 : p1).body.position.x > pos.x) ? 1 : -1;
         ctx.strokeStyle = (p === p2) ? '#ff0000' : p.color; 
         ctx.lineWidth = 6; ctx.lineCap = 'round';
-        if(p === p2) ctx.shadowBlur = 10, ctx.shadowColor = "red";
-        
+        if(p === p2 && difficulty === 'GOD') { ctx.shadowBlur = 15; ctx.shadowColor = "red"; }
         ctx.save(); ctx.translate(pos.x, pos.y);
-        
-        // Blocking pose
+        ctx.beginPath();
+        ctx.arc(0, -45, 15, 0, Math.PI * 2); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
         if (p.isBlocking) {
-            ctx.beginPath();
-            ctx.arc(0, -45, 15, 0, Math.PI * 2); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
             ctx.moveTo(0, -10); ctx.lineTo(15 * dir, -35); ctx.moveTo(0, -10); ctx.lineTo(10 * dir, -35);
-            ctx.stroke();
         } else {
-            ctx.beginPath();
-            ctx.arc(0, -45, 15, 0, Math.PI * 2); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
             ctx.moveTo(0, 15); ctx.lineTo(-15 * dir, 45); ctx.moveTo(0, 15); ctx.lineTo(15 * dir, 45);
             ctx.moveTo(0, -15); ctx.lineTo((p.cd > 8 ? 45 : 20) * dir, -15);
-            ctx.stroke();
         }
-        ctx.restore();
-        ctx.shadowBlur = 0;
+        ctx.stroke(); ctx.restore(); ctx.shadowBlur = 0;
     });
 });
 </script>
