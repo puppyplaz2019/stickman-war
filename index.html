@@ -30,7 +30,7 @@
 <div id="start-menu">
     <h1>STICKMAN WAR</h1>
     <button class="btn" onclick="startGame(true, 'EASY')" style="background: #2ecc71;">EASY CPU</button>
-    <button class="btn" onclick="startGame(true, 'GOD')" style="background: #000; border: 2px solid red; color: red;">GOD AI</button>
+    <button class="btn" onclick="startGame(true, 'HARD')" style="background: #d35400; border: 2px solid #e67e22; color: #fff;">HARD AI</button>
     <button class="btn" onclick="startGame(false)" style="background: #e74c3c;">LOCAL 2 PLAYERS</button>
     <p style="color: #666; font-size: 10px; margin-top: 10px;">P1: WASD + Shift (Shield) | P2: Arrows + 0 (Shield)</p>
 </div>
@@ -88,7 +88,6 @@ const keys = {}, touch = { p1L: false, p1R: false, p1U: false, p1B: false, p2L: 
 // KEYBOARD HANDLING
 window.onkeydown = e => {
     keys[e.code] = true;
-    // Check for single-press punch keys
     if (e.code === 'KeyS') punch(p1, p2);
     if (e.code === 'ArrowDown' && !isCPU) punch(p2, p1);
 };
@@ -133,10 +132,18 @@ Events.on(engine, 'beforeUpdate', () => {
 
     if (isCPU) {
         let d = p1.body.position.x - p2.body.position.x;
-        if (difficulty === 'GOD') {
-            if (p1.isB && Math.abs(d) < 130) Body.setVelocity(p2.body, { x: d > 0 ? -5 : 5, y: p2.body.velocity.y });
-            else if (Math.abs(d) > 80) Body.setVelocity(p2.body, { x: d > 0 ? 8 : -8, y: p2.body.velocity.y });
-            if (Math.abs(d) < 100 && p2.cd <= 0 && !p1.isB) { p2.cd = 16; hit(p2, p1); }
+        if (difficulty === 'HARD') {
+            // Balanced Hard AI logic: lower top speed, larger range check, slight reaction delay
+            if (p1.isB && Math.abs(d) < 120) {
+                Body.setVelocity(p2.body, { x: d > 0 ? -4 : 4, y: p2.body.velocity.y });
+            } else if (Math.abs(d) > 85) {
+                Body.setVelocity(p2.body, { x: d > 0 ? 6 : -6, y: p2.body.velocity.y });
+            }
+            // Punches only when close enough, and has a slight chance to hesitate
+            if (Math.abs(d) < 90 && p2.cd <= 0 && !p1.isB && Math.random() < 0.65) { 
+                p2.cd = 22; 
+                hit(p2, p1); 
+            }
         } else {
             if (Math.abs(d) > 80) Body.setVelocity(p2.body, { x: d > 0 ? 4 : -4, y: p2.body.velocity.y });
             if (Math.abs(d) < 95 && p2.cd <= 0 && Math.random() < 0.05) { p2.cd = 30; hit(p2, p1); }
@@ -170,9 +177,9 @@ Events.on(render, 'afterRender', () => {
         const dir = ((p === p1 ? p2 : p1).body.position.x > pos.x) ? 1 : -1;
         let c = p.color;
         if(c === 'rainbow') c = `hsl(${Date.now()/10 % 360}, 70%, 50%)`;
-        ctx.strokeStyle = (p === p2 && isCPU && difficulty === 'GOD') ? '#f00' : c;
+        ctx.strokeStyle = (p === p2 && isCPU && difficulty === 'HARD') ? '#e67e22' : c;
         ctx.lineWidth = 6; ctx.lineCap = 'round';
-        if(p === p2 && isCPU && difficulty === 'GOD') { ctx.shadowBlur = 15; ctx.shadowColor = "red"; }
+        if(p === p2 && isCPU && difficulty === 'HARD') { ctx.shadowBlur = 10; ctx.shadowColor = "#e67e22"; }
         ctx.save(); ctx.translate(pos.x, pos.y); ctx.beginPath();
         ctx.arc(0, -45, 15, 0, 7); ctx.moveTo(0, -30); ctx.lineTo(0, 15);
         if (p.isB) { ctx.moveTo(0, -10); ctx.lineTo(15 * dir, -35); ctx.moveTo(0, -10); ctx.lineTo(10 * dir, -35); }
